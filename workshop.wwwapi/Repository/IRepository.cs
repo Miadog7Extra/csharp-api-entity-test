@@ -14,5 +14,6 @@ namespace workshop.wwwapi.Repository
         Task<T> GetByCompositKey(int id1, int id2);
         Task<IEnumerable<T>> GetWithIncludes(params Expression<Func<T, object>>[] includes);
         Task<IEnumerable<T>> GetWithNestedIncludes(params Func<IQueryable<T>, IQueryable<T>>[] includeActions);
+        IQueryable<T> GetQueryable();
     }
 }

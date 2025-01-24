@@ -4,6 +4,7 @@ using workshop.wwwapi.Models;
 using workshop.wwwapi.Repository;
 using workshop.wwwapi.DTO.Responses;
 using Microsoft.EntityFrameworkCore;
+using workshop.wwwapi.DTO.Requests;
 
 namespace workshop.wwwapi.Endpoints
 {
@@ -15,9 +16,14 @@ namespace workshop.wwwapi.Endpoints
             var surgeryGroup = app.MapGroup("surgery");
 
             surgeryGroup.MapGet("/patients", GetPatients);
-            //surgeryGroup.MapGet("/patient{id}", GetPatienById);
+            surgeryGroup.MapGet("/patients{id}", GetPatientById);
             surgeryGroup.MapGet("/doctors", GetDoctors);
+            surgeryGroup.MapGet("/doctors{id}", GetDoctorById);
             surgeryGroup.MapGet("/appointmentsbydoctor/{doctor_id}/{patien_id}", GetAppointmentsByDoctor);
+
+            surgeryGroup.MapPost("patients/", AddPatient);
+            surgeryGroup.MapPost("doctors/", AddDoctor);
+
         }
 
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -45,17 +51,61 @@ namespace workshop.wwwapi.Endpoints
             return TypedResults.Ok(response);
         }
 
-        //[ProducesResponseType(StatusCodes.Status200OK)]
-        //public static async Task<IResult> GetPatienById(IRepository<Patient> repository, int id, IMapper mapper)
-        //{
-        //    var patient = await repository.GetById(id);
-        //    if (patient == null) 
-        //    {
-        //        return TypedResults.NotFound();
-        //    }
-        //    var response = mapper.Map<List<PatientDTO>>(patient);
-        //    return TypedResults.Ok(response);
-        //}
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public static async Task<IResult> GetPatientById(IRepository<Patient> repository, int id, IMapper mapper)
+        {
+            var patient = await repository.GetQueryable()
+                                           .Include(p => p.Appointments)
+                                           .ThenInclude(a => a.Doctor)
+                                           .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (patient == null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var response = mapper.Map<PatientDTO>(patient);
+            return TypedResults.Ok(response);
+        }
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public static async Task<IResult> GetDoctorById(IRepository<Doctor> repository, int id, IMapper mapper)
+        {
+            var doctor = await repository.GetQueryable()
+                                           .Include(d => d.Appointments)
+                                           .ThenInclude(a => a.Patient)
+                                           .FirstOrDefaultAsync(d => d.Id == id);
+
+            if (doctor == null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            var response = mapper.Map<DoctorDTO>(doctor);
+            return TypedResults.Ok(response);
+        }
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        public static async Task<IResult> AddPatient(IRepository<Patient> repository, PostPerson model)
+        {
+            Patient patient = new Patient()
+            {
+                FullName = model.FullName,
+            };
+            await repository.Insert(patient);
+
+            return TypedResults.Created($"https://localhost:7010/patients/{patient.Id}", new PatientDTO { FullName = patient.FullName });
+        }
+
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        public static async Task<IResult> AddDoctor(IRepository<Doctor> repository, PostPerson model)
+        {
+            Doctor doctor = new Doctor()
+            {
+                FullName = model.FullName,
+            };
+            await repository.Insert(doctor);
+
+            return TypedResults.Created($"https://localhost:7010/patients/{doctor.Id}", new PatientDTO { FullName = doctor.FullName });
+        }
 
 
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -63,11 +113,19 @@ namespace workshop.wwwapi.Endpoints
         public static async Task<IResult> GetAppointmentsByDoctor(IRepository<Appointment> repository, int doctor_id, int patient_id)
         {
             var appointment = await repository.GetByCompositKey(doctor_id, patient_id);
-            if (appointment != null)
+
+            if (appointment == null)
             {
-                return TypedResults.Ok(appointment);
+                return TypedResults.NotFound();
             }
-            return TypedResults.NotFound();
+            var appointmentDTOs = new AppointmentDTO
+            {
+                Booking = appointment.Booking,
+                PatientId = patient_id,
+                DoctorId = appointment.DoctorId
+            };
+
+            return TypedResults.Ok(appointmentDTOs);
         }
 
 

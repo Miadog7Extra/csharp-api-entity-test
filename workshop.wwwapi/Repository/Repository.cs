@@ -62,6 +62,10 @@ namespace workshop.wwwapi.Repository
             }
             return await query.ToListAsync();
         }
+        public IQueryable<T> GetQueryable()
+        {
+            return _table;
+        }
         public async Task<IEnumerable<T>> GetWithNestedIncludes(params Func<IQueryable<T>, IQueryable<T>>[] includeActions)
         {
             IQueryable<T> query = _table;
